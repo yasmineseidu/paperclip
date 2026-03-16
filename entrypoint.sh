@@ -60,5 +60,5 @@ fi
 echo "[entrypoint] Starting Paperclip server as paperclip user..."
 
 # Drop privileges to paperclip user and start server
-# Using su instead of gosu for compatibility (Debian slim base)
-exec su paperclip -c "cd /app && npx tsx server/src/index.ts"
+# Need to preserve PATH so node/pnpm/tsx are available
+exec su paperclip -s /bin/bash -c "cd /app && export PATH=\"$PATH\" && export HOME=/home/paperclip && pnpm dev:once"
