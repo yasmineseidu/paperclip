@@ -46,6 +46,13 @@ WORKDIR /app
 
 COPY --from=build /app .
 
+# Install Claude Code CLI globally so the claude_local adapter works.
+# This is what Paperclip spawns when agents run tasks.
+RUN npm install -g @anthropic-ai/claude-code
+
+# Create agent working directories on the persistent volume
+RUN mkdir -p /paperclip/agents
+
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3100
