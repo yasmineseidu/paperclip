@@ -55,8 +55,9 @@ COPY smarterflo-agents/ /app/smarterflo-agents/
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Create directories and set ownership
-RUN mkdir -p /paperclip/agents /paperclip/instances/default \
+# Create directories and set ownership (image layer -- volume overrides at runtime)
+RUN mkdir -p /paperclip/agents /paperclip/instances/default/workspaces \
+             /paperclip/instances/default/logs \
  && chown -R paperclip:paperclip /paperclip /app
 
 ENV NODE_ENV=production
@@ -67,7 +68,10 @@ ENV PAPERCLIP_DEPLOYMENT_MODE=cloud
 
 EXPOSE 3100
 
-# Switch to non-root user
-USER paperclip
+# Entrypoint runs as root to fix persistent volume permissions,
+# then drops to paperclip user via exec su-exec/gosu
+# NOTE: We do NOT set USER here because the persistent volume
+# may be owned by root from a previous deployment and needs
+# chmod/chown at startup.
 
 CMD ["/app/entrypoint.sh"]

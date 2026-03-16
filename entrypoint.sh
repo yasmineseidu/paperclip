@@ -1,12 +1,29 @@
 #!/bin/bash
 # Smarterflo Paperclip Entrypoint
-# Copies agent config files to persistent volume if not present,
+# Fixes volume permissions, copies agent config files to persistent volume,
 # then starts the Paperclip server.
 
-AGENTS_SRC="/app/smarterflo-agents"
-AGENTS_DST="/paperclip/agents"
+set -e
 
-# Create agent directories and copy files if they don't exist yet
+PAPERCLIP_HOME="${PAPERCLIP_HOME:-/paperclip}"
+AGENTS_SRC="/app/smarterflo-agents"
+AGENTS_DST="$PAPERCLIP_HOME/agents"
+
+echo "[entrypoint] Starting Smarterflo Paperclip..."
+echo "[entrypoint] PAPERCLIP_HOME=$PAPERCLIP_HOME"
+echo "[entrypoint] Running as user: $(whoami) ($(id))"
+
+# Fix persistent volume permissions (runs as root on Railway)
+# The volume may be owned by root from a previous deployment
+mkdir -p "$PAPERCLIP_HOME/agents" \
+         "$PAPERCLIP_HOME/instances/default/workspaces" \
+         "$PAPERCLIP_HOME/instances/default/logs"
+
+# Ensure paperclip user can write everywhere on the volume
+chown -R paperclip:paperclip "$PAPERCLIP_HOME" 2>/dev/null || true
+echo "[entrypoint] Volume permissions fixed"
+
+# Create agent directories and copy config files
 if [ -d "$AGENTS_SRC" ]; then
   for agent_dir in "$AGENTS_SRC"/*/; do
     agent_name=$(basename "$agent_dir")
@@ -36,10 +53,12 @@ if [ -d "$AGENTS_SRC" ]; then
     fi
   done
   echo "[entrypoint] Agent files deployed to $AGENTS_DST"
+else
+  echo "[entrypoint] No agent source directory found at $AGENTS_SRC -- skipping"
 fi
 
-# Ensure proper ownership
-# (already owned by paperclip user from Dockerfile, but just in case)
+echo "[entrypoint] Starting Paperclip server as paperclip user..."
 
-# Start Paperclip server
-exec npx tsx server/src/index.ts
+# Drop privileges to paperclip user and start server
+# Using su instead of gosu for compatibility (Debian slim base)
+exec su paperclip -c "cd /app && npx tsx server/src/index.ts"
