@@ -50,6 +50,11 @@ RUN npm install -g @anthropic-ai/claude-code
 # --dangerously-skip-permissions when running as root/sudo
 RUN groupadd -r paperclip && useradd -r -g paperclip -m -s /bin/bash paperclip
 
+# Copy agent config files and entrypoint
+COPY smarterflo-agents/ /app/smarterflo-agents/
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Create directories and set ownership
 RUN mkdir -p /paperclip/agents /paperclip/instances/default \
  && chown -R paperclip:paperclip /paperclip /app
@@ -65,4 +70,4 @@ EXPOSE 3100
 # Switch to non-root user
 USER paperclip
 
-CMD ["npx", "tsx", "server/src/index.ts"]
+CMD ["/app/entrypoint.sh"]
