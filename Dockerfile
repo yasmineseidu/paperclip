@@ -33,9 +33,6 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS build
 COPY . .
 
-# Build only shared libs, plugin-sdk, and UI.
-# Do NOT build server with tsc — it has type errors that don't
-# affect runtime. We run the server via tsx from source instead.
 RUN pnpm --filter @paperclipai/shared build \
  && pnpm --filter @paperclipai/plugin-sdk build \
  && pnpm --filter @paperclipai/ui build
@@ -46,12 +43,16 @@ WORKDIR /app
 
 COPY --from=build /app .
 
-# Install Claude Code CLI globally so the claude_local adapter works.
-# This is what Paperclip spawns when agents run tasks.
+# Install Claude Code CLI globally so the claude_local adapter works
 RUN npm install -g @anthropic-ai/claude-code
 
-# Create agent working directories on the persistent volume
-RUN mkdir -p /paperclip/agents
+# Create non-root user -- Claude Code CLI refuses
+# --dangerously-skip-permissions when running as root/sudo
+RUN groupadd -r paperclip && useradd -r -g paperclip -m -s /bin/bash paperclip
+
+# Create directories and set ownership
+RUN mkdir -p /paperclip/agents /paperclip/instances/default \
+ && chown -R paperclip:paperclip /paperclip /app
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
@@ -61,6 +62,7 @@ ENV PAPERCLIP_DEPLOYMENT_MODE=cloud
 
 EXPOSE 3100
 
-# Run server directly from TypeScript source via tsx
-# (mirrors local dev behavior, avoids tsc type-check errors)
+# Switch to non-root user
+USER paperclip
+
 CMD ["npx", "tsx", "server/src/index.ts"]
